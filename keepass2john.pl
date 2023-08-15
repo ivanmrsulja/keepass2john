@@ -66,7 +66,7 @@ sub process_1x_database {
         $end = "0*$databaseName";
     }
 
-    return "$databaseName<SHOULD_BE_REMOVED_INCLUDING_COLON>:\\\$keepass\$*1*$keyTransformRounds*$algorithm*$finalRandomseed*$transformRandomseed*$encIV*$contentsHash*$end";
+    return "$databaseName<SHOULD_BE_REMOVED_INCLUDING_COLON>:\$keepass\$*1*$keyTransformRounds*$algorithm*$finalRandomseed*$transformRandomseed*$encIV*$contentsHash*$end";
 }
 
 sub process_2x_database {

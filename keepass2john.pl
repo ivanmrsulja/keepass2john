@@ -4,7 +4,6 @@ use strict;
 use warnings;
 use feature qw(say);
 use File::Basename;
-use Digest::MD5 qw(md5_hex);
 use utf8;
 use Encode;
 

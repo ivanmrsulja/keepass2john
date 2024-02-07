@@ -96,7 +96,7 @@ def process_2x_database(data, database_name):
             transform_seed = stringify_hex(data[index:index+uSize])
 
         if btFieldID == 6:
-            transform_rounds = struct.unpack("H", data[index:index+2])[0]
+            transform_rounds = struct.unpack("Q", data[index:index+8])[0]
 
         if btFieldID == 7:
             iv_parameters = stringify_hex(data[index:index+uSize])

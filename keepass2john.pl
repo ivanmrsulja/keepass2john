@@ -94,7 +94,7 @@ sub process_2x_database {
         }
 
         if ($btFieldID == 6) {
-            ($transformRounds) = unpack("S", substr($data, $index, 2));
+            ($transformRounds) = unpack("Q<", substr($data, $index, 8));
         }
 
         if ($btFieldID == 7) {

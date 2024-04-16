@@ -19,12 +19,12 @@ Clone this repository:
 ### Python Implementation:
 Run the Python script:
 
-`python keepass_to_john.py your_database.kdbx > output_john.txt`
+`python keepass2john.py your_database.kdbx > output_john.txt`
 
 ### Perl Implementation:
 Run the Perl script:
 
-`perl keepass_to_john.pl your_database.kdbx > output_john.txt`
+`perl keepass2john.pl your_database.kdbx > output_john.txt`
 
 #### Replace `your_database.kdbx` with your KeePass database filename and `output_john.txt` with the desired output filename
 

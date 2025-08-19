@@ -116,6 +116,110 @@ def process_2x_database(data, database_name):
     )
 
 
+def parse_kdf_for_john(kdf_data, debug=False):
+    """
+    Extract Argon2/AES-KDF parameters for John/Hashcat.
+    Returns dict with type and parameters.
+    """
+    info = {}
+    if not kdf_data:
+        return info
+
+    try:
+        index = 0
+        version = struct.unpack("<H", kdf_data[index:index+2])[0]
+        index += 2
+
+        while index < len(kdf_data):
+            value_type = struct.unpack("B", kdf_data[index:index+1])[0]
+            index += 1
+            if value_type == 0:
+                break
+
+            key_len = struct.unpack("<I", kdf_data[index:index+4])[0]
+            index += 4
+            key = kdf_data[index:index+key_len].decode("utf-8", errors="ignore")
+            index += key_len
+
+            val_len = struct.unpack("<I", kdf_data[index:index+4])[0]
+            index += 4
+            val = kdf_data[index:index+val_len]
+            index += val_len
+
+            if key == "$UUID":
+                if val == bytes.fromhex("ef636ddf8c29444b91f7a9a403e30a0c"):
+                    info["kdf"] = "argon2d"
+                elif val == bytes.fromhex("9e298b1956db4773b23dfc3ec6f0a1e6"):
+                    info["kdf"] = "argon2id"
+                elif val == bytes.fromhex("c9d9f39a628a4460bf740d08c18a4fea"):
+                    info["kdf"] = "aes-kdf"
+            elif key == "I":
+                info["iterations"] = struct.unpack("<Q", val)[0]
+            elif key == "M":
+                info["memory"] = struct.unpack("<Q", val)[0]
+            elif key == "P":
+                info["parallelism"] = struct.unpack("<I", val)[0]
+            elif key == "S":
+                info["salt"] = hexlify(val).decode()
+
+        if debug:
+            print("DEBUG: Parsed KDF info:", info)
+
+    except Exception as e:
+        if debug:
+            print("ERROR parsing KDF parameters:", str(e))
+
+    return info
+
+
+def process_kdbx4_database(filename, debug=False):
+    with open(filename, "rb") as f:
+        sig1, sig2 = struct.unpack("<II", f.read(8))
+        if sig1 != 0x9AA2D903 or sig2 != 0xB54BFB67:
+            raise ValueError("Not a valid KDBX4 file")
+
+        version = struct.unpack("<I", f.read(4))[0]
+        if debug:
+            print(f"DEBUG: KDBX4 version {version}")
+
+        header_fields = {}
+        while True:
+            field_id = struct.unpack("B", f.read(1))[0]
+            if field_id == 0:
+                break
+            length = struct.unpack("<I", f.read(4))[0]
+            value = f.read(length)
+            header_fields[field_id] = value
+
+            if debug:
+                print(f"DEBUG: Header field {field_id}, length {length}")
+
+        master_seed = header_fields.get(4, b"")
+        transform_seed = header_fields.get(7, b"")
+        enc_iv = header_fields.get(6, b"")
+        start_bytes = header_fields.get(8, b"")
+        kdf_params = header_fields.get(11, b"")
+        kdf_info = parse_kdf_for_john(kdf_params, debug)
+
+        if debug:
+            print("DEBUG: Master seed:", hexlify(master_seed))
+            print("DEBUG: KDF info:", kdf_info)
+
+        result = (
+            f"$keepass$*4*{os.path.basename(filename)}*"
+            f"{kdf_info.get('kdf','argon2id')}*"
+            f"{kdf_info.get('parallelism',0)}*"
+            f"{kdf_info.get('memory',0)}*"
+            f"{kdf_info.get('iterations',0)}*"
+            f"{kdf_info.get('salt','')}*"
+            f"{hexlify(master_seed).decode()}*"
+            f"{hexlify(transform_seed).decode()}*"
+            f"{hexlify(enc_iv).decode()}*"
+            f"{hexlify(start_bytes).decode()}"
+        )
+        return result
+
+
 processing_mapping = {
     b'03d9a29a67fb4bb5': process_2x_database, # "2.X"
     b'03d9a29a66fb4bb5': process_2x_database, # "2.X pre release"
@@ -132,7 +236,12 @@ def process_database(filename):
 
     file_signature = hexlify(data[0:8])
 
+    version = hexlify(data[8:12])
+
     try:
+        if version == b'00000400':
+            print(process_kdbx4_database(filename=filename, debug=False))
+            return
         print(processing_mapping[file_signature](data, database_name))
     except KeyError:
         print("ERROR: KeePass signature unrecognized")

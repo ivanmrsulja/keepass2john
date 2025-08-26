@@ -7,7 +7,7 @@ Convert your KeePass databases (kdbx) to John the Ripper's format effortlessly u
 
 ## Features
 - Converts KeePass databases to John the Ripper's format for password analysis
-- Handles both 1.x and 2.x KeePass database formats
+- Handles both 1.x, 2.x, 3.x and 4.x KeePass database formats
 - Provides implementations in Python and Perl
 - Generates format-compatible output files ready for John the Ripper
 

@@ -81,13 +81,21 @@ def process_2x_database(data, database_name):
     expected_start_bytes = b''
 
     while not end_reached:
+        if index + 1 > len(data):
+            break
         btFieldID = struct.unpack("B", data[index:index+1])[0]
         index += 1
+
+        if index + 2 > len(data):
+            break
         uSize = struct.unpack("H", data[index:index+2])[0]
         index += 2
 
         if btFieldID == 0:
             end_reached = True
+
+        if index + uSize > len(data):
+            break
 
         if btFieldID == 4:
             master_seed = stringify_hex(data[index:index+uSize])
@@ -96,7 +104,8 @@ def process_2x_database(data, database_name):
             transform_seed = stringify_hex(data[index:index+uSize])
 
         if btFieldID == 6:
-            transform_rounds = struct.unpack("Q", data[index:index+8])[0]
+            if uSize >= 8:
+                transform_rounds = struct.unpack("Q", data[index:index+8])[0]
 
         if btFieldID == 7:
             iv_parameters = stringify_hex(data[index:index+uSize])
@@ -240,7 +249,7 @@ def process_kdbx4_database(filename):
         # Format the hash output according to the expected pattern
         database_name = os.path.basename(filename)
         
-        return "%s:$keepass$*4*%u*%s*%u*%u*%u*%s*%s*%s*%s" % (
+        return "%s<SHOULD_BE_REMOVED_INCLUDING_COLON>:$keepass$*4*%u*%s*%u*%u*%u*%s*%s*%s*%s" % (
             database_name,
             iterations,
             kdf_uuid_str,
@@ -333,10 +342,9 @@ def process_3x_database(data, database_name):
         salt = kdf_params.get("S", transform_seed)
         
         # Reconstruct the complete header
-        f.seek(0)
-        complete_header_data = f.read(index)  # Read up to the HMAC
+        complete_header_data = data[:index]  # Read up to the HMAC
         
-        return "%s:$keepass$*4*%u*%s*%u*%u*%u*%s*%s*%s*%s" % (
+        return "%s<SHOULD_BE_REMOVED_INCLUDING_COLON>:$keepass$*4*%u*%s*%u*%u*%u*%s*%s*%s*%s" % (
             database_name,
             iterations,
             kdf_uuid_str,
@@ -350,7 +358,7 @@ def process_3x_database(data, database_name):
         )
     else:
         # Traditional KDBX3 format
-        return "%s:$keepass$*3*%s*%s*%s*%s*%s*%s*%s*%s*%s" % (
+        return "%s<SHOULD_BE_REMOVED_INCLUDING_COLON>:$keepass$*3*%s*%s*%s*%s*%s*%s*%s*%s*%s" % (
             database_name, transform_rounds, algorithm, 
             stringify_hex(master_seed),
             stringify_hex(transform_seed), 
@@ -376,23 +384,28 @@ def process_database(filename):
     base = os.path.basename(filename)
     database_name = os.path.splitext(base)[0]
 
+    if len(data) < 12:
+        print(f"ERROR processing {filename}: file too small")
+        return
+
     file_signature = hexlify(data[0:8])
     version = struct.unpack("<I", data[8:12])[0]
 
     try:
-        # Check for KDBX4 first (version 0x00040000 or higher)
         if version >= 0x00040000:
             result = process_kdbx4_database(filename)
             print(result)
             return
-        
-        # Check for KDBX3 (version 0x00030001)
+
         if version == 0x00030001:
-            result = process_3x_database(data, database_name)
-            print(result)
-            return
-            
-        # Handle KDBX1 and KDBX2
+            print("Trying to parse as 3.x")
+            try:
+                result = process_3x_database(data, database_name)
+                print(result)
+                return
+            except:
+                print("Parsing failed, fallback to check older versions...")
+
         result = processing_mapping[file_signature](data, database_name)
         print(result)
     except KeyError:

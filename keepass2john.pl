@@ -345,11 +345,24 @@ sub process_database {
 
     if ($version >= 0x00040000) {
         say process_kdbx4_database($filename);
+        return;
     }
-    elsif ($version == 0x00030001) {
-        say process_3x_database($data, $databaseName);
+    
+    # Try KDBX3 first, but fall back if it fails
+    if ($version == 0x00030001) {
+        say "Trying to parse as 3.x";
+        eval {
+            say process_3x_database($data, $databaseName);
+            return;  # Success, return early
+        };
+        
+        # If we get here, KDBX3 parsing failed
+        my $error = $@ || 'Unknown error';
+        warn "KDBX3 parsing failed ($error), falling back to signature-based detection...";
+        # Continue to signature checks below
     }
-    elsif ($fileSignature eq '03d9a29a67fb4bb5') {
+    
+    if ($fileSignature eq '03d9a29a67fb4bb5') {
         say process_2x_database($data, $databaseName);
     }
     elsif ($fileSignature eq '03d9a29a66fb4bb5') {

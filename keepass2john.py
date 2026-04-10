@@ -10,7 +10,7 @@ def stringify_hex(hex_bytes: bytes):
     return hexlify(hex_bytes).decode("utf-8")
 
 
-def process_1x_database(data, database_name, max_inline_size=1024):
+def process_1x_database(data, database_name):
     index = 8
     algorithm = -1
 
@@ -25,11 +25,6 @@ def process_1x_database(data, database_name, max_inline_size=1024):
     else:
         print("Unsupported file encryption!")
         return
-
-    key_file_size = struct.unpack("<L", data[index:index+4])[0]
-    index += 4
-    keyfile = hexlify(data[index:index+key_file_size])
-    index += key_file_size
 
     version = hexlify(data[index:index+4])
     index += 4
@@ -53,19 +48,10 @@ def process_1x_database(data, database_name, max_inline_size=1024):
 
     key_transform_rounds = struct.unpack("<L", data[index:index+4])[0]
 
-    filesize = len(data)
-    datasize = filesize - 124
+    datasize = len(data) - 124
+    end = "1*%ld*%s" % (datasize, stringify_hex(data[124:]))
 
-    if ((filesize + datasize) < max_inline_size):
-        data_buffer = hexlify(data[124:])
-        end = "*1*%ld*%s" % (datasize, stringify_hex(data_buffer))
-    else:
-        end = "0*%s" % database_name
-
-    print("1x database properties:")
-    print("Keyfile: %s\nVersion: %s\nNumber of groups: %s\nNumber of entries: %s\n" % (keyfile, version, num_groups, num_entries))
-
-    return "%s<SHOULD_BE_REMOVED_INCLUDING_COLON>:$keepass$*1*%s*%s*%s*%s*%s*%s*%s" % (
+    return "%s:$keepass$*1*%s*%s*%s*%s*%s*%s*%s" % (
         database_name, key_transform_rounds, algorithm,
         final_random_seed, transform_random_seed, iv_params, contents_hash, end
     )
@@ -118,7 +104,7 @@ def process_2x_database(data, database_name):
     dataStartOffset = index
     firstEncryptedBytes = stringify_hex(data[index:index+32])
 
-    return "%s<SHOULD_BE_REMOVED_INCLUDING_COLON>:$keepass$*2*%s*%s*%s*%s*%s*%s*%s" % (
+    return "%s:$keepass$*2*%s*%s*%s*%s*%s*%s*%s" % (
         database_name, transform_rounds, dataStartOffset, master_seed,
         transform_seed, iv_parameters, expected_start_bytes,
         firstEncryptedBytes
@@ -249,7 +235,7 @@ def process_kdbx4_database(filename):
         # Format the hash output according to the expected pattern
         database_name = os.path.basename(filename)
         
-        return "%s<SHOULD_BE_REMOVED_INCLUDING_COLON>:$keepass$*4*%u*%s*%u*%u*%u*%s*%s*%s*%s" % (
+        return "%s:$keepass$*4*%u*%s*%u*%u*%u*%s*%s*%s*%s" % (
             database_name,
             iterations,
             kdf_uuid_str,
@@ -344,7 +330,7 @@ def process_3x_database(data, database_name):
         # Reconstruct the complete header
         complete_header_data = data[:index]  # Read up to the HMAC
         
-        return "%s<SHOULD_BE_REMOVED_INCLUDING_COLON>:$keepass$*4*%u*%s*%u*%u*%u*%s*%s*%s*%s" % (
+        return "%s:$keepass$*4*%u*%s*%u*%u*%u*%s*%s*%s*%s" % (
             database_name,
             iterations,
             kdf_uuid_str,
@@ -358,7 +344,7 @@ def process_3x_database(data, database_name):
         )
     else:
         # Traditional KDBX3 format
-        return "%s<SHOULD_BE_REMOVED_INCLUDING_COLON>:$keepass$*3*%s*%s*%s*%s*%s*%s*%s*%s*%s" % (
+        return "%s:$keepass$*3*%s*%s*%s*%s*%s*%s*%s*%s*%s" % (
             database_name, transform_rounds, algorithm, 
             stringify_hex(master_seed),
             stringify_hex(transform_seed), 

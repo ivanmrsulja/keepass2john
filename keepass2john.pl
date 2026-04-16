@@ -8,11 +8,11 @@ use utf8;
 use Encode;
 
 sub process_1x_database {
-    my ($data, $databaseName, $maxInlineSize) = @_;
+    my ($data, $databaseName) = @_;
     my $index = 8;
     my $algorithm = -1;
 
-    my ($encFlag) = unpack("<L", substr($data, $index, 4));
+    my ($encFlag) = unpack("V", substr($data, $index, 4));
     $index += 4;
     if ($encFlag & 2 == 2) {
         $algorithm = 0;
@@ -25,11 +25,6 @@ sub process_1x_database {
         return;
     }
 
-    my ($keyfileSize) = unpack("<L", substr($data, $index, 4));
-    $index += 4;
-    my $keyfile = unpack("H*", substr($data, $index, $keyfileSize));
-    $index += $keyfileSize;
-
     my $version = unpack("H*", substr($data, $index, 4));
     $index += 4;
 
@@ -39,9 +34,9 @@ sub process_1x_database {
     my $encIV = encode_utf8(unpack("H*", substr($data, $index, 16)));
     $index += 16;
 
-    my ($numGroups) = unpack("<L", substr($data, $index, 4));
+    my ($numGroups) = unpack("V", substr($data, $index, 4));
     $index += 4;
-    my ($numEntries) = unpack("<L", substr($data, $index, 4));
+    my ($numEntries) = unpack("V", substr($data, $index, 4));
     $index += 4;
 
     my $contentsHash = encode_utf8(unpack("H*", substr($data, $index, 32)));
@@ -50,19 +45,11 @@ sub process_1x_database {
     my $transformRandomseed = encode_utf8(unpack("H*", substr($data, $index, 32)));
     $index += 32;
 
-    my ($keyTransformRounds) = unpack("<L", substr($data, $index, 4));
+    my ($keyTransformRounds) = unpack("V", substr($data, $index, 4));
 
-    my $filesize = length($data);
-    my $datasize = $filesize - 124;
-
+    my $datasize = length($data) - 124;
     my $dataBuffer = unpack("H*", substr($data, 124));
-    my $end;
-    if (($filesize + $datasize) < $maxInlineSize) {
-        $end = "*1*$datasize*$dataBuffer";
-    }
-    else {
-        $end = "0*$databaseName";
-    }
+    my $end = "1*$datasize*$dataBuffer";
 
     return "$databaseName:\$keepass\$*1*$keyTransformRounds*$algorithm*$finalRandomseed*$transformRandomseed*$encIV*$contentsHash*$end";
 }
@@ -369,7 +356,7 @@ sub process_database {
         say process_2x_database($data, $databaseName);
     }
     elsif ($fileSignature eq '03d9a29a65fb4bb5') {
-        say process_1x_database($data, $databaseName, 1024);
+        say process_1x_database($data, $databaseName);
     }
     else {
         say "ERROR: KeePass signature unrecognized";
